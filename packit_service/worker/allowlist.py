@@ -339,11 +339,18 @@ class Allowlist:
     ) -> bool:
         """
         Check if account is approved and report status back in case of PR
-        :param service_config: service config
-        :param event: PullRequest and Release TODO: handle more
-        :param project: GitProject
-        :param job_configs: iterable of jobconfigs - so we know how to update status of the PR
-        :return:
+
+        Args:
+            event: Event object to be checked if approved.
+            project: Git project on which Packit Service is running.
+            service_config: Service configuaration.
+            job_configs: Iterable of job configurations. Used for updating statuses.
+
+        Returns:
+            `True` if action is approved, `False` otherwise.
+
+        Raises:
+            PackitException: If could not validate the event.
         """
         CALLBACKS: Dict[
             Union[type, Tuple[Union[type, Tuple[Any, ...]], ...]], Callable
