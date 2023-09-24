@@ -411,8 +411,8 @@ class TestEvents:
         assert isinstance(event_object.project, GithubProject)
         assert event_object.project.full_repo_name == "packit-service/packit"
         assert (
-            not event_object.base_project  # With Github app, we cannot work with fork repo
-        )
+            not event_object.base_project
+        )  # With Github app, we cannot work with fork repo
 
         flexmock(PackageConfigGetter).should_receive(
             "get_package_config_from_repo"
@@ -446,8 +446,8 @@ class TestEvents:
         assert isinstance(event_object.project, GithubProject)
         assert event_object.project.full_repo_name == "packit-service/hello-world"
         assert (
-            not event_object.base_project  # With Github app, we cannot work with fork repo
-        )
+            not event_object.base_project
+        )  # With Github app, we cannot work with fork repo
 
         flexmock(GithubProject).should_receive("get_pr").with_args(pr_id=9).and_return(
             flexmock(head_commit="12345")
@@ -521,8 +521,8 @@ class TestEvents:
         assert isinstance(event_object.project, GithubProject)
         assert event_object.project.full_repo_name == "packit-service/hello-world"
         assert (
-            not event_object.base_project  # With Github app, we cannot work with fork repo
-        )
+            not event_object.base_project
+        )  # With Github app, we cannot work with fork repo
 
         flexmock(GithubProject).should_receive("get_pr").with_args(pr_id=9).and_return(
             flexmock(head_commit="12345")
@@ -969,8 +969,8 @@ class TestEvents:
         assert event_object.project.full_repo_name == "packit-service/hello-world"
 
         assert (
-            not event_object.base_project  # With Github app, we cannot work with fork repo
-        )
+            not event_object.base_project
+        )  # With Github app, we cannot work with fork repo
 
         assert event_object.get_copr_build_logs_url() == (
             "https://download.copr.fedorainfracloud.org/results/packit/"
@@ -1017,8 +1017,8 @@ class TestEvents:
         assert event_object.project.full_repo_name == "packit-service/hello-world"
 
         assert (
-            not event_object.base_project  # With Github app, we cannot work with fork repo
-        )
+            not event_object.base_project
+        )  # With Github app, we cannot work with fork repo
 
         flexmock(PackageConfigGetter).should_receive(
             "get_package_config_from_repo"
@@ -1517,8 +1517,8 @@ class TestEvents:
         assert isinstance(event_object.project, GithubProject)
         assert event_object.project.full_repo_name == "packit/hello-world"
         assert (
-            not event_object.base_project  # With Github app, we cannot work with fork repo
-        )
+            not event_object.base_project
+        )  # With Github app, we cannot work with fork repo
         assert event_object.check_name_job == "testing-farm"
         assert event_object.check_name_target == "fedora-rawhide-x86_64"
         assert event_object.actor == "lbarcziova"

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 from logging import getLogger
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, Type
 
 from ogr.abstract import GitProject
 from ogr.services.pagure import PagureProject
@@ -158,6 +158,34 @@ class AbstractCoprBuildEvent(AbstractResultEvent):
             "https://download.copr.fedorainfracloud.org/"
             f"results/{self.owner}/{self.project_name}/{self.chroot}/"
             f"{self.build_id:08d}{pkg}/builder-live.log"
+        )
+
+    @staticmethod
+    def parse(event) -> "Optional[AbstractCoprBuildEvent]":
+        """this corresponds to copr build event e.g:"""
+        topic = event.get("topic")
+
+        copr_build_cls: Type["AbstractCoprBuildEvent"]
+        if topic == "org.fedoraproject.prod.copr.build.start":
+            copr_build_cls = CoprBuildStartEvent
+        elif topic == "org.fedoraproject.prod.copr.build.end":
+            copr_build_cls = CoprBuildEndEvent
+        else:
+            # Topic not supported.
+            return None
+
+        logger.info(f"Copr event; {event.get('what')}")
+
+        build_id = event.get("build")
+        chroot = event.get("chroot")
+        status = event.get("status")
+        owner = event.get("owner")
+        project_name = event.get("copr")
+        pkg = event.get("pkg")
+        timestamp = event.get("timestamp")
+
+        return copr_build_cls.from_build_id(
+            topic, build_id, chroot, status, owner, project_name, pkg, timestamp
         )
 
 

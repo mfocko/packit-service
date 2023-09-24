@@ -1,10 +1,13 @@
 # Copyright Contributors to the Packit project.
 # SPDX-License-Identifier: MIT
 from logging import getLogger
+from os import getenv
 from typing import Optional, Dict
 
 from ogr.abstract import GitProject
 from ogr.parsing import RepoUrl
+from packit.constants import DISTGIT_INSTANCES
+from packit.utils import nested_get
 
 from packit.config import PackageConfig, JobConfigTriggerType
 from packit_service.config import ServiceConfig, PackageConfigGetter
@@ -144,3 +147,35 @@ class NewHotnessUpdateEvent(Event):
         result = super().get_dict(d)
         result.pop("_repo_url")
         return result
+
+    @staticmethod
+    def parse(event) -> "Optional[NewHotnessUpdateEvent]":
+        if "hotness.update.bug.file" not in event.get("topic", ""):
+            return None
+
+        # "package" should contain the Fedora package name directly
+        # see https://github.com/fedora-infra/the-new-hotness/blob/
+        # 363acd33623dadd5fc3b60a83a528926c7c21fc1/hotness/hotness_consumer.py#L385
+        # and https://github.com/fedora-infra/the-new-hotness/blob/
+        # 363acd33623dadd5fc3b60a83a528926c7c21fc1/hotness/hotness_consumer.py#L444-L455
+        #
+        # we could get it also like this:
+        # [package["package_name"]
+        #   for package in event["trigger"]["msg"]["message"]["packages"]
+        #   if package["distro"] == "Fedora"][0]
+        package_name = event.get("package")
+        dg_base_url = getenv("DISTGIT_URL", DISTGIT_INSTANCES["fedpkg"].url)
+
+        distgit_project_url = f"{dg_base_url}rpms/{package_name}"
+
+        version = nested_get(event, "trigger", "msg", "project", "version")
+
+        logger.info(
+            f"New hotness update event for package: {package_name}, version: {version}"
+        )
+
+        return NewHotnessUpdateEvent(
+            package_name=package_name,
+            version=version,
+            distgit_project_url=distgit_project_url,
+        )

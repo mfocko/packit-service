@@ -1,13 +1,16 @@
 # Copyright Contributors to the Packit project.
 # SPDX-License-Identifier: MIT
 
+import logging
 from typing import Union, Optional, Dict
 
 from packit.config import JobConfigTriggerType
+from packit.utils import nested_get
 
 from ogr.abstract import GitProject
 from ogr.services.pagure import PagureProject
 
+from packit_service.config import ServiceConfig
 from packit_service.constants import KojiBuildState, KojiTaskState
 from packit_service.models import (
     AbstractProjectObjectDbType,
@@ -23,6 +26,8 @@ from packit_service.worker.events.event import (
     use_for_job_config_trigger,
     AbstractResultEvent,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractKojiEvent(AbstractResultEvent):
@@ -184,6 +189,64 @@ class KojiBuildEvent(AbstractKojiEvent):
             release=event.get("release"),
         )
 
+    @staticmethod
+    def parse(event) -> "Optional[KojiBuildEvent]":
+        if event.get("topic") != "org.fedoraproject.prod.buildsys.build.state.change":
+            return None
+
+        build_id = event.get("build_id")
+        task_id = event.get("task_id")
+        logger.info(f"Koji event: build_id={build_id} task_id={task_id}")
+
+        new_state = (
+            KojiBuildState.from_number(raw_new)
+            if (raw_new := event.get("new")) is not None
+            else None
+        )
+        old_state = (
+            KojiBuildState.from_number(raw_old)
+            if (raw_old := event.get("old")) is not None
+            else None
+        )
+
+        version = event.get("version")
+        epoch = event.get("epoch")
+
+        # "release": "1.fc36"
+        release = event.get("release")
+
+        # "request": [
+        #       "git+https://src.fedoraproject.org/rpms/packit.git#0eb3e12005cb18f15d3054020f7ac934c01eae08",
+        #       "rawhide",
+        #       {}
+        #     ],
+        raw_git_ref, fedora_target, _ = event.get("request")
+        project_url = (
+            raw_git_ref.split("#")[0].removeprefix("git+").removesuffix(".git")
+        )
+        package_name, commit_hash = raw_git_ref.split("/")[-1].split(".git#")
+        branch_name = fedora_target.removesuffix("-candidate")
+
+        return KojiBuildEvent(
+            build_id=build_id,
+            state=new_state,
+            package_name=package_name,
+            branch_name=branch_name,
+            commit_sha=commit_hash,
+            namespace="rmps",
+            repo_name=package_name,
+            project_url=project_url,
+            epoch=epoch,
+            version=version,
+            release=release,
+            rpm_build_task_id=task_id,
+            web_url=KojiBuildEvent.get_koji_rpm_build_web_url(
+                rpm_build_task_id=task_id,
+                koji_web_url=ServiceConfig.get_service_config().koji_web_url,
+            ),
+            old_state=old_state,
+        )
+
 
 class KojiTaskEvent(AbstractKojiEvent):
     """
@@ -305,4 +368,39 @@ class KojiTaskEvent(AbstractKojiEvent):
         return (
             f"{koji_logs_url}//work/tasks/"
             f"{rpm_build_task_id % 10000}/{rpm_build_task_id}/build.log"
+        )
+
+    @staticmethod
+    def parse(event) -> "Optional[KojiTaskEvent]":
+        if event.get("topic") != "org.fedoraproject.prod.buildsys.task.state.change":
+            return None
+
+        build_id = event.get("id")
+        logger.info(f"Koji event: build_id={build_id}")
+
+        state = nested_get(event, "info", "state")
+
+        if not state:
+            logger.debug("Cannot find build state.")
+            return None
+
+        state_enum = KojiTaskState(event.get("new")) if "new" in event else None
+        old_state = KojiTaskState(event.get("old")) if "old" in event else None
+
+        start_time = nested_get(event, "info", "start_time")
+        completion_time = nested_get(event, "info", "completion_time")
+
+        rpm_build_task_id = None
+        for children in nested_get(event, "info", "children", default=[]):
+            if children.get("method") == "buildArch":
+                rpm_build_task_id = children.get("id")
+                break
+
+        return KojiTaskEvent(
+            build_id=build_id,
+            state=state_enum,
+            old_state=old_state,
+            start_time=start_time,
+            completion_time=completion_time,
+            rpm_build_task_id=rpm_build_task_id,
         )

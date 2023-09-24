@@ -36,6 +36,7 @@ from packit_service.worker.events import (
     VMImageBuildResultEvent,
 )
 from packit_service.worker.events.enums import FedmsgTopic
+from packit_service.worker.helpers.testing_farm import TestingFarmJobHelper
 from packit_service.worker.mixin import ConfigFromUrlMixin, GetVMImageBuilderMixin
 from packit_service.worker.handlers import (
     CoprBuildEndHandler,
@@ -45,7 +46,6 @@ from packit_service.worker.handlers import (
 )
 from packit_service.worker.handlers.copr import AbstractCoprBuildReportHandler
 from packit_service.worker.jobs import SteveJobs
-from packit_service.worker.parser import Parser
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def check_pending_testing_farm_runs() -> None:
             log_url,
             created,
             identifier,
-        ) = Parser.parse_data_from_testing_farm(run, details)
+        ) = TestingFarmJobHelper.parse_data(run, details)
 
         logger.debug(f"Result for the TF pipeline {run.pipeline_id} is {result}.")
         if result in not_completed:

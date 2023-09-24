@@ -3,6 +3,7 @@
 
 import logging
 import re
+from datetime import datetime, timezone
 from re import Pattern
 from typing import Dict, Any, Optional, Set, List, Union, Tuple, Callable
 
@@ -1389,4 +1390,92 @@ class TestingFarmJobHelper(CoprBuildJobHelper):
             markdown_content=markdown_content,
             links_to_external_services=links_to_external_services,
             update_feedback_time=update_feedback_time,
+        )
+
+    @staticmethod
+    def parse_data(
+        tft_test_run: TFTTestRunTargetModel, event: Dict[Any, Any]
+    ) -> Tuple[
+        str, str, TestingFarmResult, str, str, str, str, str, datetime, Optional[str]
+    ]:
+        """Parses common data from testing farm response.
+
+        Such common data is environment, os, summary and others.
+
+        Args:
+            tft_test_run (TFTTestRunTargetModel): Entry of the related test run in DB.
+            event (dict): Response from testing farm converted to a dict.
+
+        Returns:
+            tuple: project_url, ref, result, summary, copr_build_id,
+                copr_chroot, compose, log_url, identifier
+        """
+        result: TestingFarmResult = TestingFarmResult(
+            nested_get(event, "result", "overall") or event.get("state") or "unknown"
+        )
+        summary: str = nested_get(event, "result", "summary") or ""
+        env: dict = nested_get(event, "environments_requested", 0, default={})
+        compose: str = nested_get(env, "os", "compose")
+        created: str = event.get("created")
+        identifier: Optional[str] = None
+        created_dt: Optional[datetime] = None
+        if created:
+            created_dt = datetime.fromisoformat(created)
+            created_dt = created_dt.replace(tzinfo=timezone.utc)
+
+        ref: str = nested_get(event, "test", "fmf", "ref")
+        fmf_url: str = nested_get(event, "test", "fmf", "url")
+
+        # ["test"]["fmf"]["ref"] contains ref to the TF test, i.e. "master",
+        # but we need the original commit_sha to be able to continue
+        if tft_test_run:
+            ref = tft_test_run.commit_sha
+            identifier = tft_test_run.identifier
+
+        if fmf_url == TESTING_FARM_INSTALLABILITY_TEST_URL:
+            # There are no artifacts in install-test results
+            copr_build_id = copr_chroot = ""
+            summary = {
+                TestingFarmResult.passed: "Installation passed",
+                TestingFarmResult.failed: "Installation failed",
+            }.get(result, summary)
+        else:
+            artifact: dict = nested_get(env, "artifacts", 0, default={})
+            a_type: str = artifact.get("type")
+            if a_type == "fedora-copr-build":
+                copr_build_id = artifact["id"].split(":")[0]
+                copr_chroot = artifact["id"].split(":")[1]
+            else:
+                logger.debug(f"{a_type} != fedora-copr-build")
+                copr_build_id = copr_chroot = ""
+
+        if not copr_chroot and tft_test_run:
+            copr_chroot = tft_test_run.target
+
+        # ["test"]["fmf"]["url"] contains PR's source/fork url or TF's install test url.
+        # We need the original/base project url stored in db.
+        if (
+            tft_test_run
+            and tft_test_run.data
+            and "base_project_url" in tft_test_run.data
+        ):
+            project_url = tft_test_run.data["base_project_url"]
+        else:
+            project_url = (
+                fmf_url if fmf_url != TESTING_FARM_INSTALLABILITY_TEST_URL else None
+            )
+
+        log_url: str = nested_get(event, "run", "artifacts")
+
+        return (
+            project_url,
+            ref,
+            result,
+            summary,
+            copr_build_id,
+            copr_chroot,
+            compose,
+            log_url,
+            created_dt,
+            identifier,
         )

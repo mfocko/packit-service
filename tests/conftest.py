@@ -26,7 +26,6 @@ from packit_service.worker.events import (
     MergeRequestGitlabEvent,
     PushPagureEvent,
 )
-from packit_service.worker.parser import Parser
 from tests.spellbook import SAVED_HTTPD_REQS, DATA_DIR, load_the_message_from_file
 from deepdiff import DeepDiff
 
@@ -405,7 +404,7 @@ def github_release_webhook() -> dict:
 
 @pytest.fixture(scope="module")
 def release_event(github_release_webhook) -> ReleaseEvent:
-    return Parser.parse_release_event(github_release_webhook)
+    return ReleaseEvent.parse(github_release_webhook)
 
 
 @pytest.fixture(scope="module")
@@ -430,12 +429,12 @@ def github_vm_image_build_comment():
 
 @pytest.fixture(scope="module")
 def github_pr_event(github_pr_webhook) -> PullRequestGithubEvent:
-    return Parser.parse_pr_event(github_pr_webhook)
+    return PullRequestGithubEvent.parse(github_pr_webhook)
 
 
 @pytest.fixture(scope="module")
 def github_push_event(github_push_webhook) -> PushGitHubEvent:
-    return Parser.parse_github_push_event(github_push_webhook)
+    return PushGitHubEvent.parse(github_push_webhook)
 
 
 @pytest.fixture(scope="module")
@@ -452,12 +451,12 @@ def distgit_push_packit():
 
 @pytest.fixture(scope="module")
 def distgit_push_event(distgit_push_packit) -> PushPagureEvent:
-    return Parser.parse_pagure_push_event(distgit_push_packit)
+    return PushPagureEvent.parse(distgit_push_packit)
 
 
 @pytest.fixture(scope="module")
 def gitlab_mr_event(gitlab_mr_webhook) -> MergeRequestGitlabEvent:
-    return Parser.parse_mr_event(gitlab_mr_webhook)
+    return MergeRequestGitlabEvent.parse(gitlab_mr_webhook)
 
 
 @pytest.fixture

@@ -63,7 +63,6 @@ from packit_service.worker.helpers.build.copr_build import (
     CoprBuildJobHelper,
 )
 from packit_service.worker.monitoring import Pushgateway
-from packit_service.worker.parser import Parser
 from packit_service.worker.reporting import (
     BaseCommitStatus,
     StatusReporterGithubChecks,
@@ -87,13 +86,13 @@ create_table_content = StatusReporterGithubChecks._create_table
 @pytest.fixture(scope="module")
 def branch_push_event() -> PushGitHubEvent:
     file_content = (DATA_DIR / "webhooks" / "github" / "push_branch.json").read_text()
-    return Parser.parse_github_push_event(json.loads(file_content))
+    return PushGitHubEvent.parse(json.loads(file_content))
 
 
 @pytest.fixture(scope="module")
 def branch_push_event_gitlab() -> PushGitlabEvent:
     file_content = (DATA_DIR / "webhooks" / "gitlab" / "push_branch.json").read_text()
-    return Parser.parse_gitlab_push_event(json.loads(file_content))
+    return PushGitlabEvent.parse(json.loads(file_content))
 
 
 def build_helper(

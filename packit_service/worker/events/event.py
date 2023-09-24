@@ -444,6 +444,10 @@ class Event:
     def __repr__(self):
         return f"{self.__class__.__name__}({self.get_dict()})"
 
+    @staticmethod
+    def parse(event) -> "Optional[Event]":
+        raise NotImplementedError("Please implement me!")
+
 
 class AbstractForgeIndependentEvent(Event):
     commit_sha: Optional[str]

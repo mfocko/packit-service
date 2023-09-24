@@ -1,5 +1,7 @@
 # Copyright Contributors to the Packit project.
 # SPDX-License-Identifier: MIT
+
+import logging
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -14,6 +16,9 @@ from packit_service.models import (
     ProjectEventModel,
 )
 from packit_service.worker.events.event import AbstractResultEvent
+from packit_service.worker.helpers.testing_farm import TestingFarmJobHelper
+
+logger = logging.getLogger(__name__)
 
 
 class TestingFarmResultsEvent(AbstractResultEvent):
@@ -87,3 +92,57 @@ class TestingFarmResultsEvent(AbstractResultEvent):
             else:
                 return None  # With Github app, we cannot work with fork repo
         return self.project
+
+    @staticmethod
+    def parse(event) -> "Optional[TestingFarmResultsEvent]":
+        """this corresponds to testing farm results event"""
+        if event.get("source") != "testing-farm" or not event.get("request_id"):
+            return None
+
+        request_id: str = event["request_id"]
+        logger.info(f"Testing farm notification event. Request ID: {request_id}")
+
+        tft_test_run = TFTTestRunTargetModel.get_by_pipeline_id(request_id)
+
+        # Testing Farm sends only request/pipeline id in a notification.
+        # We need to get more details ourselves.
+        # It'd be much better to do this in TestingFarmResultsHandler.run(),
+        # but all the code along the way to get there expects we already know the details.
+        # TODO: Get missing info from db instead of querying TF
+        event = TestingFarmJobHelper.get_request_details(request_id)
+        if not event:
+            # Something's wrong with TF, raise exception so that we can re-try later.
+            raise Exception(f"Failed to get {request_id} details from TF.")
+
+        (
+            project_url,
+            ref,
+            result,
+            summary,
+            copr_build_id,
+            copr_chroot,
+            compose,
+            log_url,
+            created,
+            identifier,
+        ) = TestingFarmJobHelper.parse_data(tft_test_run, event)
+
+        logger.debug(
+            f"project_url: {project_url}, ref: {ref}, result: {result}, "
+            f"summary: {summary!r}, copr-build: {copr_build_id}:{copr_chroot},\n"
+            f"log_url: {log_url}"
+        )
+
+        return TestingFarmResultsEvent(
+            pipeline_id=request_id,
+            result=result,
+            compose=compose,
+            summary=summary,
+            log_url=log_url,
+            copr_build_id=copr_build_id,
+            copr_chroot=copr_chroot,
+            commit_sha=ref,
+            project_url=project_url,
+            created=created,
+            identifier=identifier,
+        )
